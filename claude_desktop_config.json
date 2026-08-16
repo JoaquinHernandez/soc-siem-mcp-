@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "soc-siem-hunter": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "cwd": "/path/to/soc-siem-mcp",
+      "env": {
+        "MCP_TRANSPORT": "stdio",
+        "VIRUSTOTAL_API_KEY": "your_vt_key",
+        "SENTINEL_WORKSPACE_ID": "your_workspace_id",
+        "SPLUNK_HOST": "splunk.domain.com",
+        "SPLUNK_TOKEN": "your_token"
+      }
+    }
+  }
+}
