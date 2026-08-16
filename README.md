@@ -24,3 +24,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env****
+
+
+Run with Docker
+Bash
+docker-compose up --build -d
