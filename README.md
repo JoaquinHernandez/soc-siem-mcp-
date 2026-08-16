@@ -29,3 +29,33 @@ cp .env.example .env****
 Run with Docker
 Bash
 docker-compose up --build -d
+
+ChatGPT / AI Aura / Gemini
+Run the server in SSE mode (MCP_TRANSPORT=sse on port 8000).
+
+Expose the port (or use Cloudflare Tunnel/ngrok).
+
+Connect your assistant to: https://<your-domain>/sse (or import /openapi.json into Custom GPT Actions).
+
+
+---
+
+### 9. Git Commands to Push to GitHub
+
+Run these commands in your project root directory:
+
+```bash
+# 1. Initialize git
+git init -b main
+
+# 2. Add all files
+git add .
+
+# 3. Create initial commit
+git commit -m "feat: initial release of SOC Threat Hunting SIEM MCP Gateway"
+
+# 4. Link to your GitHub repository
+git remote add origin https://github.com/<your-username>/soc-siem-mcp.git
+
+# 5. Push to GitHub
+git push -u origin main
