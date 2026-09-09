@@ -1,5 +1,6 @@
 import asyncio
 import httpx
+import sys
 from mcp.server.fastmcp import FastMCP
 from src.config import settings
 from src.adapters import (
@@ -19,6 +20,57 @@ from src.validation import (
 )
 
 mcp = FastMCP("SOC-ThreatHunter-SIEM-MCP")
+
+# =======================================================
+# AUTHENTICATION MIDDLEWARE FOR SSE TRANSPORT
+# =======================================================
+class AuthenticatedMCPApp:
+    """
+    ASGI middleware wrapper that enforces Bearer token authentication
+    before forwarding requests to the FastMCP SSE server.
+    """
+    def __init__(self, mcp_app, api_key: str):
+        self.mcp_app = mcp_app
+        self.api_key = api_key
+    
+    async def __call__(self, scope, receive, send):
+        # Only authenticate HTTP requests (SSE uses HTTP)
+        if scope["type"] == "http":
+            # Extract headers
+            headers = dict(scope.get("headers", []))
+            auth_header = headers.get(b"authorization", b"").decode("utf-8")
+            
+            # Check for Bearer token
+            if not auth_header.startswith("Bearer "):
+                # Send 401 Unauthorized
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [[b"content-type", b"application/json"]],
+                })
+                await send({
+                    "type": "http.response.body",
+                    "body": b'{"error": "Missing or invalid Authorization header. Expected: Bearer <token>"}',
+                })
+                return
+            
+            # Validate token
+            token = auth_header[7:]  # Remove "Bearer " prefix
+            if token != self.api_key:
+                # Send 401 Unauthorized
+                await send({
+                    "type": "http.response.start",
+                    "status": 401,
+                    "headers": [[b"content-type", b"application/json"]],
+                })
+                await send({
+                    "type": "http.response.body",
+                    "body": b'{"error": "Invalid API key"}',
+                })
+                return
+        
+        # Authentication passed or not HTTP, forward to MCP app
+        await self.mcp_app(scope, receive, send)
 
 # =======================================================
 # TOOL 1: GLOBAL IOC HUNTING ACROSS ALL SIEMS
@@ -136,6 +188,45 @@ async def hunt_mitre_technique(mitre_id: str, platform: str = "sentinel") -> dic
 # =======================================================
 if __name__ == "__main__":
     if settings.MCP_TRANSPORT == "sse":
-        mcp.run(transport="sse", host=settings.MCP_HOST, port=settings.MCP_PORT)
+        # Enforce authentication for SSE transport
+        if not settings.MCP_API_KEY:
+            print("ERROR: MCP_API_KEY must be set when using SSE transport.", file=sys.stderr)
+            print("SSE transport exposes the server over HTTP and requires authentication.", file=sys.stderr)
+            print("Set MCP_API_KEY environment variable to a secure random token.", file=sys.stderr)
+            sys.exit(1)
+        
+        print(f"Starting authenticated SSE server on {settings.MCP_HOST}:{settings.MCP_PORT}")
+        print("Authentication: Bearer token required (MCP_API_KEY)")
+        
+        # Wrap the MCP run method to inject authentication
+        import uvicorn
+        original_run = mcp.run
+        
+        # Override the run method to wrap the ASGI app
+        def run_with_auth(transport="sse", host=None, port=None, **kwargs):
+            if transport == "sse":
+                # Import the SSE server creation function
+                try:
+                    from mcp.server.sse import sse_server
+                    # Create the base MCP ASGI app
+                    mcp_app = sse_server(mcp)
+                    # Wrap with authentication
+                    authenticated_app = AuthenticatedMCPApp(mcp_app, settings.MCP_API_KEY)
+                    # Run with uvicorn
+                    uvicorn.run(
+                        authenticated_app,
+                        host=host or settings.MCP_HOST,
+                        port=port or settings.MCP_PORT
+                    )
+                except ImportError:
+                    # Fallback: try alternative import path
+                    print("Warning: Could not import sse_server, trying alternative method...", file=sys.stderr)
+                    # Call original run and hope it works
+                    original_run(transport=transport, host=host, port=port, **kwargs)
+            else:
+                original_run(transport=transport, host=host, port=port, **kwargs)
+        
+        run_with_auth(transport="sse", host=settings.MCP_HOST, port=settings.MCP_PORT)
     else:
+        # stdio transport is for local use only, no authentication needed
         mcp.run(transport="stdio")
