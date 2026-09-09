@@ -23,7 +23,9 @@ async def hunt_ioc_across_all_siems(indicator: str, ioc_type: str = "ip", timefr
     """
     sentinel_kql = f"search in (DeviceNetworkEvents, DeviceFileEvents, SigninLogs) '{indicator}' | take 20"
     splunk_spl = f"'{indicator}' | head 20"
-    qradar_aql = f"SELECT * FROM events WHERE UTF8(payload) LIKE '%{indicator}%' LAST 24 HOURS"
+    # Escape single quotes to prevent SQL injection in QRadar AQL
+    escaped_indicator = indicator.replace("'", "''")
+    qradar_aql = f"SELECT * FROM events WHERE UTF8(payload) LIKE '%{escaped_indicator}%' LAST 24 HOURS"
     securonix_spot = f"index = activity and query = {indicator}"
 
     results = await asyncio.gather(
