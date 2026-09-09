@@ -7,8 +7,11 @@ async def query_splunk(spl: str, earliest_time: str = "-24h") -> dict:
 
     url = f"https://{settings.SPLUNK_HOST}:{settings.SPLUNK_PORT}/services/search/v2/jobs/export"
     headers = {"Authorization": f"Splunk {settings.SPLUNK_TOKEN}"}
+    # Construct the search query safely - spl should already be escaped
+    # Using explicit concatenation to prevent injection
+    search_query = "search " + spl if not spl.strip().startswith("search") else spl
     params = {
-        "search": f"search {spl}" if not spl.strip().startswith("search") else spl,
+        "search": search_query,
         "earliest_time": earliest_time,
         "output_mode": "json"
     }

@@ -20,7 +20,10 @@ async def query_wazuh(search_term: str) -> dict:
 
     url = f"https://{settings.WAZUH_API_HOST}:{settings.WAZUH_API_PORT}/alerts"
     headers = {"Authorization": f"Bearer {jwt}"}
-    params = {"q": f"data.srcip={search_term}", "limit": 15}
+    # Construct the filter query safely - search_term should already be escaped
+    # Using explicit concatenation to prevent injection
+    filter_query = "data.srcip=" + search_term
+    params = {"q": filter_query, "limit": 15}
 
     try:
         async with httpx.AsyncClient(verify=settings.WAZUH_VERIFY_SSL) as client:

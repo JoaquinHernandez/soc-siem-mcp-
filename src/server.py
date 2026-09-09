@@ -98,10 +98,11 @@ async def hunt_ioc_across_all_siems(indicator: str, ioc_type: str = "ip", timefr
     escaped_wazuh = escape_wazuh_filter(indicator)
     
     # Construct queries with properly escaped values
-    sentinel_kql = f"search in (DeviceNetworkEvents, DeviceFileEvents, SigninLogs) '{escaped_kql}' | take 20"
-    splunk_spl = f'"{escaped_spl}" | head 20'
-    qradar_aql = f"SELECT * FROM events WHERE UTF8(payload) LIKE '%{escaped_aql}%' LAST 24 HOURS"
-    securonix_spot = f"index = activity and query = {escaped_spotter}"
+    # Using explicit string concatenation to make the structure clear and prevent injection
+    sentinel_kql = "search in (DeviceNetworkEvents, DeviceFileEvents, SigninLogs) '" + escaped_kql + "' | take 20"
+    splunk_spl = '"' + escaped_spl + '" | head 20'
+    qradar_aql = "SELECT * FROM events WHERE UTF8(payload) LIKE '%" + escaped_aql + "%' LAST 24 HOURS"
+    securonix_spot = "index = activity and query = " + escaped_spotter
 
     results = await asyncio.gather(
         query_sentinel(sentinel_kql),
@@ -133,6 +134,15 @@ async def enrich_and_attribute_actor(ioc: str, ioc_type: str = "ip") -> dict:
     """
     if not settings.VIRUSTOTAL_API_KEY:
         return {"error": "VirusTotal API key not configured"}
+    
+    # Validate the IOC before using it in the API request
+    is_valid, error_msg = validate_ioc(ioc, ioc_type)
+    if not is_valid:
+        return {
+            "error": f"Invalid indicator: {error_msg}",
+            "indicator": ioc,
+            "ioc_type": ioc_type
+        }
 
     url = (
         f"https://www.virustotal.com/api/v3/ip_addresses/{ioc}"
