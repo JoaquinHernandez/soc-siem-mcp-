@@ -9,6 +9,14 @@ from src.adapters import (
     query_qradar,
     query_securonix
 )
+from src.validation import (
+    validate_ioc,
+    escape_kql_string,
+    escape_spl_string,
+    escape_aql_string,
+    escape_spotter_value,
+    escape_wazuh_filter
+)
 
 mcp = FastMCP("SOC-ThreatHunter-SIEM-MCP")
 
@@ -21,17 +29,32 @@ async def hunt_ioc_across_all_siems(indicator: str, ioc_type: str = "ip", timefr
     Simultaneously hunt for an IP, domain, hash, or username across Azure Sentinel,
     Splunk, Wazuh, QRadar, and Securonix to locate threat actors.
     """
-    sentinel_kql = f"search in (DeviceNetworkEvents, DeviceFileEvents, SigninLogs) '{indicator}' | take 20"
-    splunk_spl = f"'{indicator}' | head 20"
-    # Escape single quotes to prevent SQL injection in QRadar AQL
-    escaped_indicator = indicator.replace("'", "''")
-    qradar_aql = f"SELECT * FROM events WHERE UTF8(payload) LIKE '%{escaped_indicator}%' LAST 24 HOURS"
-    securonix_spot = f"index = activity and query = {indicator}"
+    # Validate the indicator against its declared type
+    is_valid, error_msg = validate_ioc(indicator, ioc_type)
+    if not is_valid:
+        return {
+            "error": f"Invalid indicator: {error_msg}",
+            "indicator": indicator,
+            "ioc_type": ioc_type
+        }
+    
+    # Escape the indicator for each SIEM query language
+    escaped_kql = escape_kql_string(indicator)
+    escaped_spl = escape_spl_string(indicator)
+    escaped_aql = escape_aql_string(indicator)
+    escaped_spotter = escape_spotter_value(indicator)
+    escaped_wazuh = escape_wazuh_filter(indicator)
+    
+    # Construct queries with properly escaped values
+    sentinel_kql = f"search in (DeviceNetworkEvents, DeviceFileEvents, SigninLogs) '{escaped_kql}' | take 20"
+    splunk_spl = f'"{escaped_spl}" | head 20'
+    qradar_aql = f"SELECT * FROM events WHERE UTF8(payload) LIKE '%{escaped_aql}%' LAST 24 HOURS"
+    securonix_spot = f"index = activity and query = {escaped_spotter}"
 
     results = await asyncio.gather(
         query_sentinel(sentinel_kql),
         query_splunk(splunk_spl, earliest_time=timeframe),
-        query_wazuh(indicator),
+        query_wazuh(escaped_wazuh),
         query_qradar(qradar_aql),
         query_securonix(securonix_spot),
         return_exceptions=True
