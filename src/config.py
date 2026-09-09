@@ -23,19 +23,19 @@ class Settings(BaseSettings):
     SPLUNK_HOST: str = os.getenv("SPLUNK_HOST", "")
     SPLUNK_PORT: str = os.getenv("SPLUNK_PORT", "8089")
     SPLUNK_TOKEN: str = os.getenv("SPLUNK_TOKEN", "")
-    SPLUNK_VERIFY_SSL: bool = os.getenv("SPLUNK_VERIFY_SSL", "false").lower() == "true"
+    SPLUNK_VERIFY_SSL: bool = os.getenv("SPLUNK_VERIFY_SSL", "true").lower() == "true"
 
     # Wazuh
     WAZUH_API_HOST: str = os.getenv("WAZUH_API_HOST", "")
     WAZUH_API_PORT: str = os.getenv("WAZUH_API_PORT", "55000")
     WAZUH_USER: str = os.getenv("WAZUH_USER", "")
     WAZUH_PASSWORD: str = os.getenv("WAZUH_PASSWORD", "")
-    WAZUH_VERIFY_SSL: bool = os.getenv("WAZUH_VERIFY_SSL", "false").lower() == "true"
+    WAZUH_VERIFY_SSL: bool = os.getenv("WAZUH_VERIFY_SSL", "true").lower() == "true"
 
     # QRadar
     QRADAR_HOST: str = os.getenv("QRADAR_HOST", "")
     QRADAR_SEC_TOKEN: str = os.getenv("QRADAR_SEC_TOKEN", "")
-    QRADAR_VERIFY_SSL: bool = os.getenv("QRADAR_VERIFY_SSL", "false").lower() == "true"
+    QRADAR_VERIFY_SSL: bool = os.getenv("QRADAR_VERIFY_SSL", "true").lower() == "true"
 
     # Securonix
     SECURONIX_HOST: str = os.getenv("SECURONIX_HOST", "")
