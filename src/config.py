@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "sse")
     MCP_PORT: int = int(os.getenv("MCP_PORT", 8000))
     MCP_HOST: str = os.getenv("MCP_HOST", "0.0.0.0")
+    # MCP_API_KEY is REQUIRED for SSE transport - must be at least 32 characters
+    # Generate with: openssl rand -hex 32
     MCP_API_KEY: str = os.getenv("MCP_API_KEY", "")
 
     # Threat Intel

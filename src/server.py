@@ -198,11 +198,33 @@ async def hunt_mitre_technique(mitre_id: str, platform: str = "sentinel") -> dic
 # =======================================================
 if __name__ == "__main__":
     if settings.MCP_TRANSPORT == "sse":
-        # Enforce authentication for SSE transport
+        # Enforce authentication for SSE transport with strict validation
         if not settings.MCP_API_KEY:
             print("ERROR: MCP_API_KEY must be set when using SSE transport.", file=sys.stderr)
             print("SSE transport exposes the server over HTTP and requires authentication.", file=sys.stderr)
             print("Set MCP_API_KEY environment variable to a secure random token.", file=sys.stderr)
+            sys.exit(1)
+        
+        # Validate API key strength - must be at least 32 characters and not a placeholder
+        if len(settings.MCP_API_KEY) < 32:
+            print("ERROR: MCP_API_KEY must be at least 32 characters long.", file=sys.stderr)
+            print("Use a cryptographically secure random token (e.g., generated with: openssl rand -hex 32)", file=sys.stderr)
+            sys.exit(1)
+        
+        # Check for common placeholder values
+        placeholder_values = [
+            "your_secure_random_api_key_here",
+            "changeme",
+            "change_me",
+            "placeholder",
+            "test",
+            "demo",
+            "example",
+            "default"
+        ]
+        if settings.MCP_API_KEY.lower() in placeholder_values:
+            print("ERROR: MCP_API_KEY appears to be a placeholder value.", file=sys.stderr)
+            print("Set a real cryptographically secure random token.", file=sys.stderr)
             sys.exit(1)
         
         print(f"Starting authenticated SSE server on {settings.MCP_HOST}:{settings.MCP_PORT}")
@@ -210,7 +232,6 @@ if __name__ == "__main__":
         
         # Wrap the MCP run method to inject authentication
         import uvicorn
-        original_run = mcp.run
         
         # Override the run method to wrap the ASGI app
         def run_with_auth(transport="sse", host=None, port=None, **kwargs):
@@ -218,23 +239,26 @@ if __name__ == "__main__":
                 # Import the SSE server creation function
                 try:
                     from mcp.server.sse import sse_server
-                    # Create the base MCP ASGI app
-                    mcp_app = sse_server(mcp)
-                    # Wrap with authentication
-                    authenticated_app = AuthenticatedMCPApp(mcp_app, settings.MCP_API_KEY)
-                    # Run with uvicorn
-                    uvicorn.run(
-                        authenticated_app,
-                        host=host or settings.MCP_HOST,
-                        port=port or settings.MCP_PORT
-                    )
-                except ImportError:
-                    # Fallback: try alternative import path
-                    print("Warning: Could not import sse_server, trying alternative method...", file=sys.stderr)
-                    # Call original run and hope it works
-                    original_run(transport=transport, host=host, port=port, **kwargs)
+                except ImportError as e:
+                    print("FATAL ERROR: Cannot import mcp.server.sse.sse_server", file=sys.stderr)
+                    print("Authentication cannot be enforced. Refusing to start server.", file=sys.stderr)
+                    print(f"Import error: {e}", file=sys.stderr)
+                    sys.exit(1)
+                
+                # Create the base MCP ASGI app
+                mcp_app = sse_server(mcp)
+                # Wrap with authentication
+                authenticated_app = AuthenticatedMCPApp(mcp_app, settings.MCP_API_KEY)
+                # Run with uvicorn
+                uvicorn.run(
+                    authenticated_app,
+                    host=host or settings.MCP_HOST,
+                    port=port or settings.MCP_PORT
+                )
             else:
-                original_run(transport=transport, host=host, port=port, **kwargs)
+                # This should never be reached in SSE mode
+                print("FATAL ERROR: Unexpected transport mode in SSE branch", file=sys.stderr)
+                sys.exit(1)
         
         run_with_auth(transport="sse", host=settings.MCP_HOST, port=settings.MCP_PORT)
     else:
