@@ -12,4 +12,6 @@ COPY . .
 
 EXPOSE 8000
 
+USER 65532:65532
+
 CMD ["python", "-m", "src.server"]
